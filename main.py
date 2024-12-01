@@ -35,6 +35,9 @@ def load_hashes():
     return {}
 
 def save_hashes(hashes):
+    all_hashes = load_hashes()
+    for i in all_hashes:
+        hashes[i] = all_hashes[i]
     with open(HASHES_FILE, 'w') as file:
         json.dump(hashes, file, indent=4)
 

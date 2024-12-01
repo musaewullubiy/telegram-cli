@@ -1,4 +1,7 @@
 #!/usr/bin/python
+import sys
+from distutils.core import setup
+
 import pyrogram
 import typer
 from pyrogram import Client
@@ -6,15 +9,47 @@ from pyrogram.errors import PeerIdInvalid, ChatIdInvalid
 import hashlib
 import json
 import os
-import config
+
+import configparser
+import os
+
+config_file = 'config.ini'
+config = configparser.ConfigParser()
+app = typer.Typer()
+
+@app.command()
+def setup():
+    print("https://my.telegram.org/auth")
+    api_id = input("Введите api_id: ")
+    api_hash = input("Введите api_hash: ")
+
+    # Если файл не существует, создаем его с заданными значениями
+    config['Telegram'] = {
+        'api_id': api_id,
+        'api_hash': api_hash
+    }
+
+    # Записываем конфигурацию в файл
+    with open(config_file, 'w') as configfile:
+        config.write(configfile)
+
+    print(f"Файл конфигурации {config_file} создан с заданными значениями.")
+
+
+try:
+    config.read(config_file)
+    api_id = config.get('Telegram', 'api_id')
+    api_hash = config.get('Telegram', 'api_hash')
+
+except Exception as e:
+    setup()
+    sys.exit()
 
 client = pyrogram.Client(
     'my_account',
-    api_id=config.api_id,
-    api_hash=config.api_hash
+    api_id=api_id,
+    api_hash=api_hash
 )
-
-app = typer.Typer()
 
 HASHES_FILE = 'chat_hashes.json'
 TAGS_FILE = 'chat_tags.json'
@@ -149,6 +184,7 @@ def get_tags():
             print(f"{tag}: {chat_id}")
     else:
         print("Нет тегов.")
+
 
 if __name__ == "__main__":
     app()

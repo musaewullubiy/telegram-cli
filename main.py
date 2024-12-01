@@ -1,3 +1,4 @@
+#!/usr/bin/python
 import pyrogram
 import typer
 from pyrogram import Client

@@ -205,7 +205,7 @@ def get_tags():
 @app.command()
 def show(chat: str, count: int):
     """
-    Показывает последние n сообщений из указанного чата.
+    Показывает последние count сообщений из указанного чата.
 
     :param chat: Идентификатор чата (id, hash или tag)
     :param count: Количество сообщений для отображения
@@ -231,10 +231,25 @@ def show(chat: str, count: int):
         # Отображаем сообщения
         for msg in list(messages)[::-1]:
             text = msg.text or msg.caption or "No text"
-            if msg.from_user.last_name:
-                name = msg.from_user.first_name + msg.from_user.last_name
+            if msg.photo:
+                media_type = "Photo"
+
+                # Скачиваем фото и создаем ссылку для открытия
+                photo_path = client.download_media(msg.photo.file_id)
+                typer.echo(f"file://{photo_path}")
+            elif msg.video:
+                media_type = "Video"
+
+                # Скачиваем видео и создаем ссылку для открытия
+                video_path = client.download_media(msg.video.file_id)
+                typer.echo(f"file://{video_path}")
+            if msg.from_user:
+                if msg.from_user.last_name:
+                    name = msg.from_user.first_name + msg.from_user.last_name
+                else:
+                    name = msg.from_user.first_name
             else:
-                name = msg.from_user.first_name
+                name = msg.chat.title
 
             typer.echo(f"{name}\nText:")
             typer.echo(f"{text}\n")

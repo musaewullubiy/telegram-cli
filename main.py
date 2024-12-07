@@ -255,7 +255,7 @@ def show(chat: str, count: int, nofiles: bool = typer.Option(False, "--nofiles",
                     typer.echo(f"\t<-ВИДЕОРОЛИК->")
                 if replied_msg.from_user:
                     if replied_msg.from_user.last_name:
-                        replied_name = replied_msg.from_user.first_name + replied_msg.from_user.last_name
+                        replied_name = replied_msg.from_user.first_name + " " + replied_msg.from_user.last_name
                     else:
                         replied_name = replied_msg.from_user.first_name
                 else:
@@ -277,6 +277,12 @@ def show(chat: str, count: int, nofiles: bool = typer.Option(False, "--nofiles",
             typer.echo(f"{name}")
             if text:
                 typer.echo(f"Text: {text}")
+
+            if msg.reactions:
+                reactions = list()
+                for reaction in msg.reactions.reactions:
+                    reactions.append(f"{reaction.count} {reaction.emoji}")
+                typer.echo("Reactions: " + "; ".join(reactions))
             typer.echo(f"| {msg.date} |")
             typer.echo(f"- - - - - - - - - - - - - - - - - - - - - -")
     except (PeerIdInvalid, ChatIdInvalid) as e:

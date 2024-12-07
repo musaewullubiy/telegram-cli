@@ -203,7 +203,7 @@ def get_tags():
         typer.echo("Нет тегов.")
 
 @app.command()
-def show(chat: str, count: int):
+def show(chat: str, count: int, nofiles: bool = typer.Option(False, "--nofiles", help="Optional parameter")):
     """
     Показывает последние count сообщений из указанного чата.
 
@@ -230,19 +230,42 @@ def show(chat: str, count: int):
 
         # Отображаем сообщения
         for msg in list(messages)[::-1]:
-            text = msg.text or msg.caption or "No text"
+            text = msg.text or msg.caption or False
             if msg.photo:
-                media_type = "Photo"
-
-                # Скачиваем фото и создаем ссылку для открытия
-                photo_path = client.download_media(msg.photo.file_id)
-                typer.echo(f"file://{photo_path}")
+                if nofiles:
+                    typer.echo(f"<-ФОТОГРАФИЯ->")
+                else:
+                    # Скачиваем фото и создаем ссылку для открытия
+                    photo_path = client.download_media(msg.photo.file_id)
+                    typer.echo(f"file://{photo_path}")
+                
             elif msg.video:
-                media_type = "Video"
+                if nofiles:
+                    typer.echo(f"<-ВИДЕОРОЛИК->")
+                else:
+                    # Скачиваем видео и создаем ссылку для открытия
+                    video_path = client.download_media(msg.video.file_id)
+                    typer.echo(f"file://{video_path}")
+            if msg.reply_to_message_id:
+                replied_msg = client.get_messages(msg.chat.id, msg.reply_to_message_id)
+                replied_text = replied_msg.text or replied_msg.caption or False
+                if replied_msg.photo:
+                    typer.echo(f"\t<-ФОТОГРАФИЯ->")
+                elif replied_msg.video:
+                    typer.echo(f"\t<-ВИДЕОРОЛИК->")
+                if replied_msg.from_user:
+                    if replied_msg.from_user.last_name:
+                        replied_name = replied_msg.from_user.first_name + replied_msg.from_user.last_name
+                    else:
+                        replied_name = replied_msg.from_user.first_name
+                else:
+                    replied_name = msg.chat.title
+                typer.echo(f"<-<-<-<-<-<-<-<- Отвечает на это сообщение от {replied_name}:")
+                if replied_text:
+                    typer.echo(f"\tText: {replied_text}")
+                typer.echo(f"\t| {replied_msg.date} |")
+                typer.echo(f"->->->->->->->->")
 
-                # Скачиваем видео и создаем ссылку для открытия
-                video_path = client.download_media(msg.video.file_id)
-                typer.echo(f"file://{video_path}")
             if msg.from_user:
                 if msg.from_user.last_name:
                     name = msg.from_user.first_name + msg.from_user.last_name
@@ -251,8 +274,9 @@ def show(chat: str, count: int):
             else:
                 name = msg.chat.title
 
-            typer.echo(f"{name}\nText:")
-            typer.echo(f"{text}\n")
+            typer.echo(f"{name}")
+            if text:
+                typer.echo(f"Text: {text}")
             typer.echo(f"| {msg.date} |")
             typer.echo(f"- - - - - - - - - - - - - - - - - - - - - -")
     except (PeerIdInvalid, ChatIdInvalid) as e:

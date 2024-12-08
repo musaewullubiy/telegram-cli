@@ -53,13 +53,6 @@ TAGS_FILE = 'chat_tags.json'
 def hash_id(chat_id: str) -> str:
     return hashlib.sha256(chat_id.encode()).hexdigest()
 
-def get_chat_id(chat_id: str):
-    if chat_id:
-        try:
-            return int(chat_id)
-        except ValueError:
-            raise typer.BadParameter("Неверный формат chat_id. Должно быть целым числом.")
-
 def load_hashes():
     if os.path.exists(HASHES_FILE):
         with open(HASHES_FILE, 'r') as file:
@@ -92,17 +85,15 @@ def find_chat_id_by_hash_prefix(hashes, prefix):
 def get_id_by_smthg(smthg):
     hashes = load_hashes()
     tags = load_tags()
-
-    if smthg in hashes:
-        chat_id = hashes[smthg]
-    elif smthg in tags:
-        chat_id = tags[smthg]
-    else:
-        # Поиск по префиксу хеша
-        chat_id = find_chat_id_by_hash_prefix(hashes, smthg)
-        if not chat_id:
-            chat_id = get_chat_id(smthg)
-    return chat_id
+    chat_id = find_chat_id_by_hash_prefix(hashes, smthg)
+    if not chat_id:
+        if smthg in hashes:
+            chat_id = hashes[smthg]
+        elif smthg in tags:
+            chat_id = tags[smthg]
+        else:
+            chat_id = client.get_users(smthg).id
+    return int(chat_id)
 
 @app.command()
 def send(

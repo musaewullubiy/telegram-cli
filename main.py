@@ -127,7 +127,7 @@ def send(
         client.stop()
 
 @app.command()
-def get_chats(count: int):
+def chats(count: int = typer.Option(10, "-c")):
     """
         Показывает последние count чатов
 
@@ -223,71 +223,67 @@ def show(chat: str,
     :param count: Количество сообщений для отображения
     """
     client.start()
-    try:
-        chat_id = get_id_by_smthg(chat)
+    chat_id = get_id_by_smthg(chat)
 
-        # Получаем последние n сообщений
-        messages = list(client.get_chat_history(chat_id=chat_id, limit=count))
+    # Получаем последние n сообщений
+    messages = client.get_chat_history(chat_id=chat_id, limit=count)
 
-        if by:
-            by_id = get_id_by_smthg(by)
-            messages = [msg for msg in messages if msg.from_user.id == by_id]
+    if by:
+        by_id = get_id_by_smthg(by)
+        messages = [msg for msg in messages if msg.from_user.id == by_id]
 
-        # Отображаем сообщения
-        for msg in messages[::-1]:
+    # Отображаем сообщения
+    for msg in list(messages)[::-1]:
 
-            if msg.reply_to_message_id:
-                replied_msg = client.get_messages(msg.chat.id, msg.reply_to_message_id)
+        if msg.reply_to_message_id:
+            replied_msg = client.get_messages(msg.chat.id, msg.reply_to_message_id)
 
-                replied_name = get_name(replied_msg)
-                typer.echo(f"<-<-<-<-<-<-<-<- Отвечает на это сообщение от {replied_name}:")
+            replied_name = get_name(replied_msg)
+            typer.echo(f"<-<-<-<-<-<-<-<- Отвечает на это сообщение от {replied_name}:")
 
-                replied_text = replied_msg.text or replied_msg.caption or False
-                if replied_msg.photo:
-                    typer.echo(f"\t<-ФОТОГРАФИЯ->")
-                elif replied_msg.video:
-                    typer.echo(f"\t<-ВИДЕОРОЛИК->")
+            replied_text = replied_msg.text or replied_msg.caption or False
+            if replied_msg.photo:
+                typer.echo(f"\t<-ФОТОГРАФИЯ->")
+            elif replied_msg.video:
+                typer.echo(f"\t<-ВИДЕОРОЛИК->")
 
 
-                if replied_text:
-                    typer.echo(f"\tText: {replied_text}")
-                typer.echo(f"\t| {replied_msg.date} |")
-                typer.echo(f"->->->->->->->->")
+            if replied_text:
+                typer.echo(f"\tText: {replied_text}")
+            typer.echo(f"\t| {replied_msg.date} |")
+            typer.echo(f"->->->->->->->->")
 
-            text = msg.text or msg.caption or False
-            if msg.photo:
-                if nofiles:
-                    typer.echo(f"<-ФОТОГРАФИЯ->")
-                else:
-                    # Скачиваем фото и создаем ссылку для открытия
-                    photo_path = client.download_media(msg.photo.file_id)
-                    typer.echo(f"file://{photo_path}")
-                
-            elif msg.video:
-                if nofiles:
-                    typer.echo(f"<-ВИДЕОРОЛИК->")
-                else:
-                    # Скачиваем видео и создаем ссылку для открытия
-                    video_path = client.download_media(msg.video.file_id)
-                    typer.echo(f"file://{video_path}")
-            name = get_name(msg)
-            typer.echo(name)
+        text = msg.text or msg.caption or False
+        if msg.photo:
+            if nofiles:
+                typer.echo(f"<-ФОТОГРАФИЯ->")
+            else:
+                # Скачиваем фото и создаем ссылку для открытия
+                photo_path = client.download_media(msg.photo.file_id)
+                typer.echo(f"file://{photo_path}")
 
-            if text:
-                typer.echo(f"Text: {text}")
+        elif msg.video:
+            if nofiles:
+                typer.echo(f"<-ВИДЕОРОЛИК->")
+            else:
+                # Скачиваем видео и создаем ссылку для открытия
+                video_path = client.download_media(msg.video.file_id)
+                typer.echo(f"file://{video_path}")
+        name = get_name(msg)
+        typer.echo(name)
 
-            if msg.reactions:
-                reactions = list()
-                for reaction in msg.reactions.reactions:
-                    reactions.append(f"{reaction.count} {reaction.emoji}")
-                typer.echo("Reactions: " + "; ".join(reactions))
-            typer.echo(f"| {msg.date} |")
-            typer.echo(f"- - - - - - - - - - - - - - - - - - - - - -")
+        if text:
+            typer.echo(f"Text: {text}")
 
-    except Exception as e:
-        typer.echo(f"Ошибка: {e}")
-    finally:
-        client.stop()
+        if msg.reactions:
+            reactions = list()
+            for reaction in msg.reactions.reactions:
+                reactions.append(f"{reaction.count} {reaction.emoji}")
+            typer.echo("Reactions: " + "; ".join(reactions))
+        typer.echo(f"| {msg.date} |")
+        typer.echo(f"- - - - - - - - - - - - - - - - - - - - - -")
+
+    client.stop()
 
 if __name__ == "__main__":
     app()

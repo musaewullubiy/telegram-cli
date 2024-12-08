@@ -1,10 +1,9 @@
 #!/usr/bin/python
+from datetime import datetime
 import sys
 
 import pyrogram
 import typer
-from pyrogram import Client
-from pyrogram.errors import PeerIdInvalid, ChatIdInvalid
 import hashlib
 import json
 
@@ -90,6 +89,21 @@ def find_chat_id_by_hash_prefix(hashes, prefix):
         return hashes[matching_hashes[0]]
     return None
 
+def get_id_by_smthg(smthg):
+    hashes = load_hashes()
+    tags = load_tags()
+
+    if smthg in hashes:
+        chat_id = hashes[smthg]
+    elif smthg in tags:
+        chat_id = tags[smthg]
+    else:
+        # Поиск по префиксу хеша
+        chat_id = find_chat_id_by_hash_prefix(hashes, smthg)
+        if not chat_id:
+            chat_id = get_chat_id(smthg)
+    return chat_id
+
 @app.command()
 def send(
     chat: str = typer.Option(None, help="ID чата, префикс хеша или тег."),
@@ -103,22 +117,11 @@ def send(
     """
     client.start()
     try:
-        hashes = load_hashes()
-        tags = load_tags()
-
-        if chat in hashes:
-            chat_id = hashes[chat]
-        elif chat in tags:
-            chat_id = tags[chat]
-        else:
-            # Поиск по префиксу хеша
-            chat_id = find_chat_id_by_hash_prefix(hashes, chat)
-            if not chat_id:
-                chat_id = get_chat_id(chat)
+        chat_id = get_id_by_smthg(chat)
 
         client.send_message(chat_id, message)
         typer.echo("Отправлено")
-    except (PeerIdInvalid, ChatIdInvalid) as e:
+    except Exception as e:
         typer.echo(f"Ошибка: {e}")
     finally:
         client.stop()
@@ -168,23 +171,13 @@ def tag(chat: str, tag: str):
     """
     client.start()
     try:
-        hashes = load_hashes()
+        chat_id = get_id_by_smthg(chat)
+
         tags = load_tags()
-
-        if chat in hashes:
-            chat_id = hashes[chat]
-        elif chat in tags:
-            chat_id = tags[chat]
-        else:
-            # Поиск по префиксу хеша
-            chat_id = find_chat_id_by_hash_prefix(hashes, chat)
-            if not chat_id:
-                chat_id = get_chat_id(chat)
-
         tags[tag] = chat_id
         save_tags(tags)
         typer.echo(f"Тег '{tag}' добавлен к чату с ID {chat_id}")
-    except (PeerIdInvalid, ChatIdInvalid) as e:
+    except Exception as e:
         typer.echo(f"Ошибка: {e}")
     finally:
         client.stop()
@@ -202,8 +195,27 @@ def get_tags():
     else:
         typer.echo("Нет тегов.")
 
+def get_name(msg):
+    if msg.from_user:
+        if msg.from_user.last_name:
+            name = msg.from_user.first_name + msg.from_user.last_name
+        else:
+            name = msg.from_user.first_name
+    else:
+        name = msg.chat.title
+    if msg.from_user.username:
+        name = f"{name} == @{msg.from_user.username}"
+    else:
+        name = f"{name} == id:{msg.from_user.id}"
+
+    return name
+
 @app.command()
-def show(chat: str, count: int, nofiles: bool = typer.Option(False, "--nofiles", help="Optional parameter")):
+def show(chat: str,
+         count: int = typer.Option(10, "-c"),
+         nofiles: bool = typer.Option(False, "--nofiles"),
+         by: str = typer.Option(None, "-by")
+         ):
     """
     Показывает последние count сообщений из указанного чата.
 
@@ -212,24 +224,36 @@ def show(chat: str, count: int, nofiles: bool = typer.Option(False, "--nofiles",
     """
     client.start()
     try:
-        hashes = load_hashes()
-        tags = load_tags()
-
-        if chat in hashes:
-            chat_id = hashes[chat]
-        elif chat in tags:
-            chat_id = tags[chat]
-        else:
-            # Поиск по префиксу хеша
-            chat_id = find_chat_id_by_hash_prefix(hashes, chat)
-            if not chat_id:
-                chat_id = get_chat_id(chat)
+        chat_id = get_id_by_smthg(chat)
 
         # Получаем последние n сообщений
-        messages = client.get_chat_history(chat_id=chat_id, limit=count)
+        messages = list(client.get_chat_history(chat_id=chat_id, limit=count))
+
+        if by:
+            by_id = get_id_by_smthg(by)
+            messages = [msg for msg in messages if msg.from_user.id == by_id]
 
         # Отображаем сообщения
-        for msg in list(messages)[::-1]:
+        for msg in messages[::-1]:
+
+            if msg.reply_to_message_id:
+                replied_msg = client.get_messages(msg.chat.id, msg.reply_to_message_id)
+
+                replied_name = get_name(replied_msg)
+                typer.echo(f"<-<-<-<-<-<-<-<- Отвечает на это сообщение от {replied_name}:")
+
+                replied_text = replied_msg.text or replied_msg.caption or False
+                if replied_msg.photo:
+                    typer.echo(f"\t<-ФОТОГРАФИЯ->")
+                elif replied_msg.video:
+                    typer.echo(f"\t<-ВИДЕОРОЛИК->")
+
+
+                if replied_text:
+                    typer.echo(f"\tText: {replied_text}")
+                typer.echo(f"\t| {replied_msg.date} |")
+                typer.echo(f"->->->->->->->->")
+
             text = msg.text or msg.caption or False
             if msg.photo:
                 if nofiles:
@@ -246,35 +270,9 @@ def show(chat: str, count: int, nofiles: bool = typer.Option(False, "--nofiles",
                     # Скачиваем видео и создаем ссылку для открытия
                     video_path = client.download_media(msg.video.file_id)
                     typer.echo(f"file://{video_path}")
-            if msg.reply_to_message_id:
-                replied_msg = client.get_messages(msg.chat.id, msg.reply_to_message_id)
-                replied_text = replied_msg.text or replied_msg.caption or False
-                if replied_msg.photo:
-                    typer.echo(f"\t<-ФОТОГРАФИЯ->")
-                elif replied_msg.video:
-                    typer.echo(f"\t<-ВИДЕОРОЛИК->")
-                if replied_msg.from_user:
-                    if replied_msg.from_user.last_name:
-                        replied_name = replied_msg.from_user.first_name + " " + replied_msg.from_user.last_name
-                    else:
-                        replied_name = replied_msg.from_user.first_name
-                else:
-                    replied_name = msg.chat.title
-                typer.echo(f"<-<-<-<-<-<-<-<- Отвечает на это сообщение от {replied_name}:")
-                if replied_text:
-                    typer.echo(f"\tText: {replied_text}")
-                typer.echo(f"\t| {replied_msg.date} |")
-                typer.echo(f"->->->->->->->->")
+            name = get_name(msg)
+            typer.echo(name)
 
-            if msg.from_user:
-                if msg.from_user.last_name:
-                    name = msg.from_user.first_name + msg.from_user.last_name
-                else:
-                    name = msg.from_user.first_name
-            else:
-                name = msg.chat.title
-
-            typer.echo(f"{name}")
             if text:
                 typer.echo(f"Text: {text}")
 
@@ -285,7 +283,8 @@ def show(chat: str, count: int, nofiles: bool = typer.Option(False, "--nofiles",
                 typer.echo("Reactions: " + "; ".join(reactions))
             typer.echo(f"| {msg.date} |")
             typer.echo(f"- - - - - - - - - - - - - - - - - - - - - -")
-    except (PeerIdInvalid, ChatIdInvalid) as e:
+
+    except Exception as e:
         typer.echo(f"Ошибка: {e}")
     finally:
         client.stop()
